@@ -1,0 +1,13 @@
+<resources>
+    <string name="app_name">RoomRawSQL1</string>
+
+    <string-array name="sort_options">
+        <item>Sort by Name (Asc)</item>
+        <item>Sort by Name (Desc)</item>
+    </string-array>
+
+    <string-array name="sort_age_options">
+        <item>Sort by Age (Ascending)</item>
+        <item>Sort by Age (Descending)</item>
+    </string-array>
+</resources>
