@@ -2,12 +2,20 @@
     <string name="app_name">RoomRawSQL1</string>
 
     <string-array name="sort_options">
-        <item>Sort by Name (Asc)</item>
-        <item>Sort by Name (Desc)</item>
+        <item>Ascending</item>
+        <item>Descending</item>
     </string-array>
 
-    <string-array name="sort_age_options">
-        <item>Sort by Age (Ascending)</item>
-        <item>Sort by Age (Descending)</item>
-    </string-array>
+    <string name="salary">Salary</string>
+    <string name="age">Age</string>
+    <string name="department">Department</string>
+    <string name="name">Name</string>
+    <string name="reset">reset</string>
+
+    <string name="dots">:</string>
+    <string name="sort_by_name">Sort by Name:</string>
+    <string name="sort_by_age">Sort by Age:</string>
+    <string name="select_department">Select Department:</string>
+    <string name="select_salary">Select Salary:</string>
+    <string name="ok">OK</string>
 </resources>

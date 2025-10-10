@@ -20,4 +20,9 @@ class DepartmentViewModel(application: Application) : AndroidViewModel(applicati
     fun insert(department: Department) = viewModelScope.launch {
         repository.insert(department)
     }
+
+    // Add additional functions for salary-related queries if needed
+    suspend fun getDepartmentsWithMinSalary(minSalary: Double): List<Department> {
+        return repository.getDepartmentsWithMinSalary(minSalary)
+    }
 }

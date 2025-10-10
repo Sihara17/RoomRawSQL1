@@ -27,9 +27,14 @@ class PersonViewModel(application: Application) : AndroidViewModel(application) 
     fun getPersonsSortedCombined(
         nameSortOrder: String,
         ageSortOrder: String,
-        departmentSortOrder: String
+        departmentSortOrder: String,
+        salarySortOrder: String
     ): LiveData<List<PersonWithDepartment>> {
-        return repository.getPersonsSortedCombined(nameSortOrder, ageSortOrder, departmentSortOrder)
+        return repository.getPersonsSortedCombined(nameSortOrder, ageSortOrder, departmentSortOrder, salarySortOrder)
+    }
+
+    fun getPersonsSortedById(): LiveData<List<PersonWithDepartment>> {
+        return repository.getPersonsSortedById()
     }
 }
 

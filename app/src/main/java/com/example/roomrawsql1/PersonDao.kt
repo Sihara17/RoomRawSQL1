@@ -22,4 +22,8 @@ interface PersonDao {
     @Transaction
     @Query("SELECT * FROM persons")
     fun getAllPersonsWithDepartment(): LiveData<List<PersonWithDepartment>>
+
+
+    @Query("SELECT * FROM persons ORDER BY id ASC")
+    fun getPersonsSortedById(): LiveData<List<PersonWithDepartment>>
 }

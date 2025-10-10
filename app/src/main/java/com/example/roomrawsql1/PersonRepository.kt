@@ -11,14 +11,18 @@ class PersonRepository(private val personDao: PersonDao) {
     fun getPersonsSortedCombined(
         nameSortOrder: String,
         ageSortOrder: String,
-        departmentSortOrder: String
+        departmentSortOrder: String,
+        salarySortOrder: String
     ): LiveData<List<PersonWithDepartment>> {
         // Construct the SQL query string
         val queryString = """
-            SELECT * FROM persons 
-            ORDER BY name $nameSortOrder, 
-                     age $ageSortOrder, 
-                     department_id $departmentSortOrder
+            SELECT persons.*, departments.*, departments.salary
+            FROM persons 
+            LEFT JOIN departments ON persons.department_id = departments.id
+            ORDER BY persons.name $nameSortOrder, 
+                     persons.age $ageSortOrder, 
+                     departments.department_name $departmentSortOrder, 
+                     departments.salary $salarySortOrder
         """
         // Create a SimpleSQLiteQuery with the query string
         val query = SimpleSQLiteQuery(queryString)
@@ -29,6 +33,11 @@ class PersonRepository(private val personDao: PersonDao) {
 
     suspend fun insert(person: Person) {
         personDao.insert(person)
+    }
+
+    // PersonRepository.kt
+    fun getPersonsSortedById(): LiveData<List<PersonWithDepartment>> {
+        return personDao.getPersonsSortedById()
     }
 }
 
