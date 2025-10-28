@@ -33,40 +33,57 @@ class SortingPerformanceTest {
 
     @After
     fun cleanup() {
+        try {
+            // optional: pull latest GC
+            Runtime.getRuntime().gc()
+            System.runFinalization()
+        } catch (e: Exception) { /* ignore */ }
+
         scenario.close()
-        Runtime.getRuntime().gc()
-        System.runFinalization()
     }
 
     @Test
     fun runAscSortingTests() {
+        // contoh: jalankan 5 iterasi (sesuaikan jumlah sesuai kebutuhan)
         repeat(5) {
-            testAscSortingCombination()
+            testAscSortingCombination(it + 1)
             resetDataToOriginal()
             testCount++
         }
 
-        // Log hasil akhir
+        // Log hasil akhir ke logcat juga (CSV sudah terbuat oleh PerfRecorder)
         logFinalResults()
     }
 
-    private fun testAscSortingCombination() {
-        // Set spinner selections secara manual melalui activity
+    private fun testAscSortingCombination(runId: Int) {
+        // metadata contoh: "RawSQL|single" atau "Room|relational"
+        // kalau kamu punya flag/variable untuk memilih RawSQL vs Room, set metadata sesuai.
+        val condition = detectCurrentCondition() // implementasi sederhana di bawah
+        val scenarioName = detectCurrentScenario() // implementasi sederhana
+        val meta = "$condition|$scenarioName|run:$runId"
+
+        // Set spinner selections secara manual
         setAllSpinnersToAscManual()
 
-        // Trigger sorting
-        onView(withId(R.id.buttonSortOK)).perform(click())
+        // ukur: kita ingin merekam CPU/Memory/WALL + renderingTime
+        PerfRecorder.measureAndSave("$condition-$scenarioName-run-$runId", meta) {
+            // Trigger sorting (aksi yang ingin diukur)
+            onView(withId(R.id.buttonSortOK)).perform(click())
 
-        // Tunggu sampai data selesai diproses (bukan rendering)
-        Thread.sleep(100) // Tunggu proses sorting selesai
+            // Tunggu sampai proses sorting/logika selesai (bukan rendering): kecil delay
+            Thread.sleep(100)
 
-        // Ukur hanya waktu rendering
-        val renderingDuration = measureRenderingTime()
+            // Ukur rendering secara spesifik (blocking)
+            val renderingDuration = measureRenderingTime()
+            renderingTimes.add(renderingDuration)
 
-        renderingTimes.add(renderingDuration)
-        logTestResults(renderingDuration)
+            // record rendering time juga ke log (sekaligus kita tambahkan ke metadata via println)
+            Log.i("PerfExtra", "render_ms=$renderingDuration, items=${getItemCount()}")
+            println("render_ms=$renderingDuration, items=${getItemCount()}")
+        }
     }
 
+    // Tetap gunakan implementasi Choreographer yang sudah kamu punya
     private fun measureRenderingTime(): Long {
         val latch = CountDownLatch(1)
         var renderingTime = 0L
@@ -76,7 +93,6 @@ class SortingPerformanceTest {
             val recyclerView = activity.findViewById<RecyclerView>(R.id.recyclerViewPersons)
             val startTime = System.nanoTime()
 
-            // Gunakan salah satu pendekatan saja
             val choreographer = Choreographer.getInstance()
             val frameCallback = object : Choreographer.FrameCallback {
                 override fun doFrame(frameTimeNanos: Long) {
@@ -92,36 +108,7 @@ class SortingPerformanceTest {
             recyclerView.requestLayout()
         }
 
-        return if (latch.await(2, TimeUnit.SECONDS)) renderingTime else -1
-    }
-
-    // Alternatif lebih sederhana menggunakan View.post
-    private fun measureRenderingTimeSimple(): Long {
-        val latch = CountDownLatch(1)
-        var renderingTime = 0L
-
-        scenario.onActivity { activity ->
-            val recyclerView = activity.findViewById<RecyclerView>(R.id.recyclerViewPersons)
-
-            val startTime = System.nanoTime()
-
-            // Post runnable yang akan dieksekusi setelah rendering selesai
-            recyclerView.post {
-                val endTime = System.nanoTime()
-                renderingTime = (endTime - startTime) / 1_000_000
-                latch.countDown()
-            }
-
-            // Trigger rendering
-            recyclerView.requestLayout()
-        }
-
-        if (latch.await(2, TimeUnit.SECONDS)) {
-            return renderingTime
-        } else {
-            Log.w("RenderingMeasure", "Rendering timeout detected")
-            return -1
-        }
+        return if (latch.await(3, TimeUnit.SECONDS)) renderingTime else -1
     }
 
     private fun setAllSpinnersToAscManual() {
@@ -155,24 +142,16 @@ class SortingPerformanceTest {
     }
 
     private fun waitForDataLoaded() {
-        // Tunggu sampai data terload dengan simple delay
         Thread.sleep(500)
-    }
-
-    private fun logTestResults(duration: Long) {
-        println("=== TEST ITERATION $testCount ===")
-        println("Rendering Time Only: ${duration}ms")
-        println("Items rendered: ${getItemCount()}")
-        println("================================")
     }
 
     private fun logFinalResults() {
         println("\n=== FINAL RESULTS ===")
-        println("Total Tests: ${renderingTimes.size}")
+        println("Total Rendering Samples: ${renderingTimes.size}")
         println("Average Rendering Time: ${renderingTimes.average()}ms")
         println("Min Rendering Time: ${renderingTimes.minOrNull()}ms")
         println("Max Rendering Time: ${renderingTimes.maxOrNull()}ms")
-        println("All Times: ${renderingTimes.joinToString()}")
+        println("All Render Times: ${renderingTimes.joinToString()}")
     }
 
     private fun getItemCount(): Int {
@@ -182,5 +161,17 @@ class SortingPerformanceTest {
             itemCount.set(recyclerView.adapter?.itemCount ?: 0)
         }
         return itemCount.get()
+    }
+
+    // Simple detectors: jika kamu punya logic yang membedakan RawSQL vs Room
+    // sesuaikan implementasi ini dengan kondisi di project-mu.
+    private fun detectCurrentCondition(): String {
+        // contoh default - ubah jika kamu punya cara memilih RawSQL vs Room
+        return "UNKNOWN" // ganti "RawSQL" atau "Room" sesuai konfigurasi test kamu
+    }
+
+    private fun detectCurrentScenario(): String {
+        // contoh default - ubah jika kamu menjalankan skenario tunggal vs relasi
+        return "UNKNOWN_SCENARIO"
     }
 }
