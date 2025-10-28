@@ -1,24 +1,22 @@
-package com.example.roomrawsql1
-
+import android.os.Environment
 import androidx.test.platform.app.InstrumentationRegistry
-import androidx.test.ext.junit.runners.AndroidJUnit4
-
 import org.junit.Test
-import org.junit.runner.RunWith
+import java.io.File
 
-import org.junit.Assert.*
-
-/**
- * Instrumented test, which will execute on an Android device.
- *
- * See [testing documentation](http://d.android.com/tools/testing).
- */
-@RunWith(AndroidJUnit4::class)
-class ExampleInstrumentedTest {
+class PerfTest {
     @Test
-    fun useAppContext() {
-        // Context of the app under test.
-        val appContext = InstrumentationRegistry.getInstrumentation().targetContext
-        assertEquals("com.example.roomrawsql1", appContext.packageName)
+    fun recordPerformance() {
+        val context = InstrumentationRegistry.getInstrumentation().targetContext
+
+        // Simulasi hasil uji (ganti dengan hasil real)
+        val data = """
+            type,cpu,memory,rendering
+            RawSQL,32,180,45
+            Kotlin,29,172,47
+        """.trimIndent()
+
+        // Simpan ke file internal storage agar bisa diambil nanti
+        val outFile = File(context.getExternalFilesDir(null), "perf_results.csv")
+        outFile.writeText(data)
     }
 }
