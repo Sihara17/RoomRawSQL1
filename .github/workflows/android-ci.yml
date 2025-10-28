@@ -1,4 +1,4 @@
-name: Android CI
+name: Android CI (with perf CSV pull)
 
 on:
   push:
@@ -10,49 +10,78 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
-
     steps:
-      - name: 🧩 Checkout repository
+      - name: Checkout repo
         uses: actions/checkout@v4
 
-      - name: ☕ Set up JDK 17
+      - name: Set up JDK 17
         uses: actions/setup-java@v4
         with:
           java-version: '17'
           distribution: 'temurin'
           cache: gradle
 
-      - name: 📦 Setup Android SDK
+      - name: Setup Android SDK
         uses: android-actions/setup-android@v3
 
-      - name: 🔑 Grant execute permission for Gradle wrapper
+      - name: Grant execute permission for gradlew
         run: chmod +x gradlew
 
-      - name: 🏗️ Build with Gradle
-        run: ./gradlew assembleDebug
+      - name: Build debug APKs
+        run: ./gradlew assembleDebug assembleAndroidTest
+        # jika project berada di subfolder, tambahkan working-directory: RoomRawSQL1
 
-      # Jalankan test di emulator
-      - name: 🧪 Run instrumented tests
+      - name: Run instrumented tests on emulator
         uses: reactivecircus/android-emulator-runner@v2
-        continue-on-error: true  # biar error emulator tidak gagal total
+        continue-on-error: true
         with:
-          api-level: 30
-          target: google_apis
-          arch: x86_64
-          profile: Nexus 6
+          api-level: 26                # lebih ringan & stabil di CI
+          target: default
+          arch: x86
           disable-animations: true
           emulator-options: -no-snapshot -no-window -noaudio -no-boot-anim -gpu swiftshader_indirect
           script: ./gradlew connectedDebugAndroidTest
 
-      - name: 📁 Upload test reports (always run)
+      - name: Wait a little for device to flush files
+        run: sleep 3
+
+      - name: Pull perf_results.csv from emulator
+        run: |
+          # try common emulator name; if multiple emulators, adapt
+          adb devices
+          # get emulator serial (first emulator)
+          EMU=$(adb devices | awk '/emulator/ {print $1; exit}')
+          echo "EMULATOR: $EMU"
+          if [ -n "$EMU" ]; then
+            adb -s "$EMU" root || true
+            # Give time for root to settle
+            adb -s "$EMU" wait-for-device
+            # try pulling from app internal files dir
+            adb -s "$EMU" pull /data/data/com.example.roomrawsql1/files/perf_results.csv ./perf_results.csv || \
+              adb -s "$EMU" pull /sdcard/Android/data/com.example.roomrawsql1/files/perf_results.csv ./perf_results.csv || \
+              echo "perf_results.csv not found on device"
+            ls -la perf_results.csv || true
+          else
+            echo "No emulator found to pull from"
+          fi
+        continue-on-error: true
+
+      - name: Upload perf_results artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: perf-results
+          path: perf_results.csv
+
+      - name: Upload test reports
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: android-test-reports
           path: app/build/reports/androidTests/connected/
 
-      - name: 📦 Upload APK (build output)
-        if: success() || failure()  # upload APK walau test gagal
+      - name: Upload APK
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: debug-apk
