@@ -10,10 +10,13 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
+
     steps:
+      # 1️⃣ Checkout repo
       - name: Checkout repo
         uses: actions/checkout@v4
 
+      # 2️⃣ Setup JDK 17
       - name: Set up JDK 17
         uses: actions/setup-java@v4
         with:
@@ -21,51 +24,54 @@ jobs:
           distribution: 'temurin'
           cache: gradle
 
+      # 3️⃣ Setup Android SDK
       - name: Setup Android SDK
         uses: android-actions/setup-android@v3
 
+      # 4️⃣ Grant gradlew execute permission
       - name: Grant execute permission for gradlew
         run: chmod +x gradlew
 
+      # 5️⃣ Build APK & Test APK
       - name: Build debug APKs
         run: ./gradlew assembleDebug assembleAndroidTest
-        # jika project berada di subfolder, tambahkan working-directory: RoomRawSQL1
 
+      # 6️⃣ Run instrumented tests on emulator
       - name: Run instrumented tests on emulator
         uses: reactivecircus/android-emulator-runner@v2
         continue-on-error: true
         with:
-          api-level: 26                # lebih ringan & stabil di CI
+          api-level: 26
           target: default
           arch: x86
           disable-animations: true
           emulator-options: -no-snapshot -no-window -noaudio -no-boot-anim -gpu swiftshader_indirect
           script: ./gradlew connectedDebugAndroidTest
 
-      - name: Wait a little for device to flush files
+      # 7️⃣ Tunggu sebentar agar file CSV tersimpan
+      - name: Wait for CSV to flush
         run: sleep 3
 
+      # 8️⃣ Pull perf_results.csv dari emulator
       - name: Pull perf_results.csv from emulator
         run: |
-          # try common emulator name; if multiple emulators, adapt
           adb devices
-          # get emulator serial (first emulator)
           EMU=$(adb devices | awk '/emulator/ {print $1; exit}')
           echo "EMULATOR: $EMU"
           if [ -n "$EMU" ]; then
             adb -s "$EMU" root || true
-            # Give time for root to settle
             adb -s "$EMU" wait-for-device
-            # try pulling from app internal files dir
+            # Coba pull dari internal files / sdcard
             adb -s "$EMU" pull /data/data/com.example.roomrawsql1/files/perf_results.csv ./perf_results.csv || \
-              adb -s "$EMU" pull /sdcard/Android/data/com.example.roomrawsql1/files/perf_results.csv ./perf_results.csv || \
-              echo "perf_results.csv not found on device"
+            adb -s "$EMU" pull /sdcard/Android/data/com.example.roomrawsql1/files/perf_results.csv ./perf_results.csv || \
+            echo "perf_results.csv not found"
             ls -la perf_results.csv || true
           else
             echo "No emulator found to pull from"
           fi
         continue-on-error: true
 
+      # 9️⃣ Upload perf_results.csv sebagai artifact
       - name: Upload perf_results artifact
         if: always()
         uses: actions/upload-artifact@v4
@@ -73,6 +79,42 @@ jobs:
           name: perf-results
           path: perf_results.csv
 
+      # 10️⃣ Jalankan analisis Python (opsional)
+      - name: Run performance analysis
+        if: always()
+        run: |
+          pip install pandas scipy
+          python <<'EOF'
+          import pandas as pd
+          import scipy.stats as stats
+
+          try:
+              df = pd.read_csv("perf_results.csv")
+              print("Data Loaded:")
+              print(df)
+
+              groups = df.groupby("type").mean(numeric_only=True)
+              print("\nAverage Performance by Type:")
+              print(groups)
+
+              # CPU, Memory, Rendering t-test
+              cols = ["cpu", "memory", "rendering"]
+              results = []
+              for c in cols:
+                  raw = df[df["type"]=="RawSQL"][c]
+                  kot = df[df["type"]=="Kotlin"][c]
+                  t, p = stats.ttest_ind(raw, kot, equal_var=False)
+                  results.append(f"{c}: t={t:.3f}, p={p:.4f}")
+
+              with open("perf_analysis_result.txt", "w") as f:
+                  f.write("Performance Analysis Results\n")
+                  f.write("\n".join(results))
+              print("\nAnalysis complete.")
+          except Exception as e:
+              print("Analysis failed:", e)
+          EOF
+
+      # 11️⃣ Upload test reports
       - name: Upload test reports
         if: always()
         uses: actions/upload-artifact@v4
@@ -80,9 +122,18 @@ jobs:
           name: android-test-reports
           path: app/build/reports/androidTests/connected/
 
+      # 12️⃣ Upload APK
       - name: Upload APK
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: debug-apk
           path: app/build/outputs/apk/debug/app-debug.apk
+
+      # 13️⃣ Upload hasil analisis Python
+      - name: Upload perf analysis result
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: perf-analysis
+          path: perf_analysis_result.txt
